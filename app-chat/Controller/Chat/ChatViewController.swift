@@ -97,7 +97,6 @@ class ChatViewController: MessagesViewController {
         DatabaseManager.shared.getAllMessagesForConversation(wit: id, completion: { [weak self] result in
             switch result{
             case .success(let messages):
-                print("success in getting messages: \(messages)")
                 guard !messages.isEmpty else {
                     print("messages are empty")
                     return
@@ -131,12 +130,12 @@ extension ChatViewController: InputBarAccessoryViewDelegate{
             return
         }
         print("Sending: \(text)")
+        let mmessage = Message(sender: selfSender,
+                               messageId: messageId,
+                               sentDate: Date(),
+                               kind: .text(text))
 //        Gửi tin nhắn
         if isNewConversation{
-            let mmessage = Message(sender: selfSender,
-                                   messageId: messageId,
-                                   sentDate: Date(),
-                                   kind: .text(text))
             DatabaseManager.shared.createNewConversation(with: otherUserEmail, name: self.title ?? "User", fistMessengger: mmessage, completion: { [weak self] succeess in
                 if succeess{
                     self?.isNewConversation = false
@@ -146,7 +145,16 @@ extension ChatViewController: InputBarAccessoryViewDelegate{
                 }
             })
         }else{
-            
+            guard let conversationId = conversationId, let name = self.title else {
+                return
+            }
+            DatabaseManager.shared.sendMessager(to: conversationId, name: name,otherUserEmail: otherUserEmail, newMessage: mmessage) {success in
+                if success {
+                    print("send")
+                }else{
+                    print("error send")
+                }
+            }
         }
     }
     private func createMessgerId()->String?{

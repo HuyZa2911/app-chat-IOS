@@ -85,10 +85,22 @@ extension DatabaseManager{
         })
     }
 }
+extension DatabaseManager{
+    public func getDatatFor(path: String,completion: @escaping(Result<Any, Error >) -> Void){
+        self.database.child("\(path)").observeSingleEvent(of: .value){ snapshot in
+            guard let value = snapshot.value else{
+                completion(.failure(DatabaseError.failedToFetch))
+                return
+            }
+            completion(.success(value))
+        }
+    }
+}
 
 extension DatabaseManager{
     public func createNewConversation(with otherEmail:String,name: String,fistMessengger: Message,completion: @escaping (Bool)->Void ){
-        guard let currentEmail = UserDefaults.standard.value(forKey: "email") as? String else {
+        guard let currentEmail = UserDefaults.standard.value(forKey: "email") as? String ,
+              let currentName = UserDefaults.standard.value(forKey: "name")as? String else {
             return
         }
         let safeEmail = DatabaseManager.safeEmail(email: currentEmail)
@@ -138,7 +150,7 @@ extension DatabaseManager{
             let recipient_newConversationData: [String: Any] = [
                 "id": conversationId,
                 "other_user_email": safeEmail,
-                "name": "Self",
+                "name": currentName,
                 "latest_message":[
                     "date":dateString,
                     "message": message,
@@ -308,8 +320,143 @@ extension DatabaseManager{
         })
     }
     
-    public func senMessager(to conversation: String, mmessage: Message,completion: @escaping (Result<String,Error>)->Void){
+    public func sendMessager(to conversation: String, name: String,otherUserEmail : String, newMessage: Message ,completion: @escaping (Bool)->Void){
         
+        guard let myEmail = UserDefaults.standard.value(forKey: "email") as? String else {
+            completion(true)
+            return
+        }
+        
+        let currentEmail = DatabaseManager.safeEmail(email: myEmail)
+        
+        database.child("conversation/\(conversation)/message").observeSingleEvent(of: .value, with: { [weak self] snapshot in
+            guard let strongSelf = self else {
+                return
+            }
+            guard var currentMessage = snapshot.value as? [[String : Any]] else{
+                completion(false)
+                return
+            }
+            let messageDate = newMessage.sentDate
+            let dateString = ChatViewController.dateFormatter.string(from: messageDate)
+            
+            var message = ""
+            switch newMessage.kind{
+            case .text(let messagerText):
+                message = messagerText
+            case .attributedText(_):
+                break
+            case .photo(_):
+                break
+            case .video(_):
+                break
+            case .location(_):
+                break
+            case .emoji(_):
+                break
+            case .audio(_):
+                break
+            case .contact(_):
+                break
+            case .linkPreview(_):
+                break
+            case .custom(_):
+                break
+            }
+            guard let myEmail = UserDefaults.standard.value(forKey: "email") as? String else {
+                completion(false)
+                return
+            }
+            let currentEmail = DatabaseManager.safeEmail(email: myEmail)
+            let newMessagerEntry:[String:Any]=[
+                "id": newMessage.messageId,
+                "type": newMessage.kind.messageKindString,
+                "content": message,
+                "date": dateString,
+                "sender_email": currentEmail,
+                "is_read":false,
+                "name":name
+            ]
+            currentMessage.append(newMessagerEntry)
+            strongSelf.database.child("conversation/\(conversation)/message").setValue(currentMessage){ error , _ in
+                guard error == nil else{
+                    completion(false)
+                    return
+                }
+                strongSelf.database.child("\(currentEmail)/conversation").observeSingleEvent(of: .value, with: {snapshot in
+                    guard var currentUserConverSation = snapshot.value as? [[String: Any]] else {
+                        completion(false)
+                        return
+                    }
+                    var tagertConversation:[String:Any]?
+                    let updateVale: [String:Any]=[
+                        "date": dateString,
+                        "is_read": false,
+                        "message": message
+                    ]
+                    var position = 0
+                    for conversationDictinary in currentUserConverSation{
+                        if let currentId = conversationDictinary["id"] as? String, currentId == conversation{
+                            tagertConversation = conversationDictinary
+                            break
+                        }
+                        position += 1
+                    }
+                    tagertConversation?["latest_message"] = updateVale
+                    guard let finalConverSation = tagertConversation else{
+                        completion(false)
+                        return
+                    }
+                    print("\(position)")
+                    currentUserConverSation[position] = finalConverSation
+                    strongSelf.database.child("\(currentEmail)/conversation").setValue(currentUserConverSation, withCompletionBlock: { error , _ in
+                        guard error == nil else{
+                            completion(false)
+                            return
+                        }
+                        
+                        
+//                        Update tin nhắn đầu tiên cho người nhận
+                        strongSelf.database.child("\(otherUserEmail)/conversation").observeSingleEvent(of: .value, with: {snapshot in
+                            guard var othertUserConverSation = snapshot.value as? [[String: Any]] else {
+                                completion(false)
+                                return
+                            }
+                            var tagertConversation:[String:Any]?
+                            let updateVale: [String:Any]=[
+                                "date": dateString,
+                                "is_read": false,
+                                "message": message
+                            ]
+                            var position = 0
+                            for conversationDictinary in othertUserConverSation{
+                                if let currentId = conversationDictinary["id"] as? String, currentId == conversation{
+                                    tagertConversation = conversationDictinary
+                                    break
+                                }
+                                position += 1
+                            }
+                            tagertConversation?["latest_message"] = updateVale
+                            guard let finalConverSation = tagertConversation else{
+                                completion(false)
+                                return
+                            }
+                            print("\(position)")
+                            othertUserConverSation[position] = finalConverSation
+                            strongSelf.database.child("\(otherUserEmail)/conversation").setValue(othertUserConverSation, withCompletionBlock: { error , _ in
+                                guard error == nil else{
+                                    completion(false)
+                                    return
+                                }
+                                completion(true)
+                            })
+                        })
+                        
+                        completion(true)
+                    })
+                })
+            }
+        })
     }
 }
 

@@ -105,6 +105,8 @@ class LoginViewController: UIViewController {
                                   height: 52)
     }
     @objc private func loginButtonTapped(){
+        emailField.resignFirstResponder()
+        passwordField.resignFirstResponder()
         guard let email = emailField.text, let password = passwordField.text, !email.isEmpty, !password.isEmpty else {
             alertUserLogginfError()
             return
@@ -120,11 +122,24 @@ class LoginViewController: UIViewController {
                 strongSelf.spinner.dismiss()
             }
             guard let result = authResult, error == nil else {
-                print("Đăng nhập không thành công")
                 strongSelf.alertUserLogginfError(messages: "Sai tài khoản hoặc mật khẩu")
                 return
             }
             let user = result.user
+            let safeEmail = DatabaseManager.safeEmail(email: email)
+            DatabaseManager.shared.getDatatFor(path: safeEmail, completion: { [weak self] result in
+                switch result{
+                case .success(let data):
+                    guard let userData = data as? [String: Any],
+                    let name = userData["name"] else {
+                        return
+                    }
+                    UserDefaults.standard.set(name, forKey: "name")
+                    
+                case .failure(let error):
+                    print("Không đọc được data: \(error)")
+                }
+            })
             
             UserDefaults.standard.set(email, forKey: "email")
             
@@ -138,7 +153,6 @@ class LoginViewController: UIViewController {
                                       preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "ok", style: .cancel, handler: nil))
         present(alert, animated: true)
-        
     }
     @objc private func didTapRegester(){
         let vc = RegesterViewController()

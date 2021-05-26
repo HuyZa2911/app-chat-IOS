@@ -28,10 +28,10 @@ class ProfileViewController: UIViewController {
         let view = UIView(frame: CGRect(x: 0,
                                         y: 0,
                                         width: self.view.width,
-                                        height: 300))
+                                        height: 200))
         view.backgroundColor = .link
         let imageView = UIImageView(frame: CGRect(x: (view.width - 150)/2,
-                                                  y: 75,
+                                                  y: 20,
                                                   width: 150,
                                                   height: 150))
         imageView.contentMode = .scaleAspectFill
@@ -50,7 +50,6 @@ class ProfileViewController: UIViewController {
                 print("Lỗi h/a: \(error)")
             }
         })
-        
         return view
     }
     func dowloadImage(imageView: UIImageView, url: URL) {

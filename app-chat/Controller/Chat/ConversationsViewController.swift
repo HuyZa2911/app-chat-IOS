@@ -117,7 +117,6 @@ class ConversationsViewController: UIViewController {
     private func setupTableView(){
         tableView.delegate = self
         tableView.dataSource = self
-        
     }
     private func fetchConversation(){
         tableView.isHidden = false
